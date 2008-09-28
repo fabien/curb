@@ -36,6 +36,7 @@ typedef struct {
   VALUE success_proc;
   VALUE failure_proc;
   VALUE complete_proc;
+  VALUE encoding;
 
   /* Other opts */
   unsigned short local_port;       // 0 is no port
