@@ -1352,6 +1352,9 @@ VALUE ruby_curl_easy_cleanup( VALUE self, ruby_curl_easy *rbce, VALUE bodybuf, V
     rbce->header_data = Qnil;
   }
 
+  // Clean up the options for subsequent calls
+  curl_easy_reset(rbce->curl);
+
   return Qnil;
 }
 
