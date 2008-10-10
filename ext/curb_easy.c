@@ -65,7 +65,7 @@ static size_t proc_data_handler(char *stream,
     case T_BIGNUM:
       return NUM2LONG(procret);
     default:
-      rb_warn("Curl data handlers should return the number of bytes read as an Integer");
+      /*rb_warn("Curl data handlers should return the number of bytes read as an Integer");*/
       return size * nmemb;
   }
 }
@@ -112,7 +112,8 @@ void curl_easy_mark(ruby_curl_easy *rbce) {
   rb_gc_mark(rbce->success_proc);
   rb_gc_mark(rbce->failure_proc);
   rb_gc_mark(rbce->complete_proc);
-
+  rb_gc_mark(rbce->encoding);
+  
   rb_gc_mark(rbce->postdata_buffer);
   rb_gc_mark(rbce->bodybuf);
   rb_gc_mark(rbce->headerbuf);
@@ -168,6 +169,7 @@ static VALUE ruby_curl_easy_new(int argc, VALUE *argv, VALUE klass) {
   rbce->success_proc = Qnil;
   rbce->failure_proc = Qnil;
   rbce->complete_proc = Qnil;
+  rbce->encoding = Qnil;
   
   /* various-typed opts */
   rbce->local_port = 0;
@@ -429,6 +431,27 @@ static VALUE ruby_curl_easy_cookiejar_get(VALUE self) {
   CURB_OBJECT_GETTER(ruby_curl_easy, cookiejar);
 }
 
+/*
+ * call-seq:
+ *   easy.encoding=                                     => "string"
+ * 
+ * Set the accepted encoding types, curl will handle all of the decompression
+ * 
+ */ 
+static VALUE ruby_curl_easy_encoding_set(VALUE self, VALUE encoding) {
+  CURB_OBJECT_SETTER(ruby_curl_easy, encoding);
+}
+
+/*
+ * call-seq:
+ *   easy.encoding                                     => "string"
+ * 
+ * Get the set encoding types
+ * 
+ */ 
+static VALUE ruby_curl_easy_encoding_get(VALUE self) {
+    CURB_OBJECT_GETTER(ruby_curl_easy, encoding);
+}
 
 /* ================== IMMED ATTRS ==================*/
 
@@ -1192,6 +1215,11 @@ VALUE ruby_curl_easy_setup( ruby_curl_easy *rbce, VALUE *body_buffer, VALUE *hea
     curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, (curl_write_callback)&default_data_handler);
     curl_easy_setopt(curl, CURLOPT_HEADERDATA, *header_buffer);
   }
+
+  if (rbce->encoding != Qnil) {
+    curl_easy_setopt(curl, CURLOPT_ENCODING, StringValuePtr(rbce->encoding)); 
+  }
+  
 
   // progress and debug procs    
   if (rbce->progress_proc != Qnil) {
@@ -2412,6 +2440,8 @@ void init_curb_easy() {
   rb_define_method(cCurlEasy, "dns_cache_timeout", ruby_curl_easy_dns_cache_timeout_get, 0);
   rb_define_method(cCurlEasy, "ftp_response_timeout=", ruby_curl_easy_ftp_response_timeout_set, 1);
   rb_define_method(cCurlEasy, "ftp_response_timeout", ruby_curl_easy_ftp_response_timeout_get, 0);
+  rb_define_method(cCurlEasy, "encoding=", ruby_curl_easy_encoding_set, 1);
+  rb_define_method(cCurlEasy, "encoding", ruby_curl_easy_encoding_get, 0);
   
   rb_define_method(cCurlEasy, "proxy_tunnel=", ruby_curl_easy_proxy_tunnel_set, 1);
   rb_define_method(cCurlEasy, "proxy_tunnel?", ruby_curl_easy_proxy_tunnel_q, 0);
@@ -2435,7 +2465,7 @@ void init_curb_easy() {
   rb_define_method(cCurlEasy, "multipart_form_post?", ruby_curl_easy_multipart_form_post_q, 0);
   rb_define_method(cCurlEasy, "enable_cookies=", ruby_curl_easy_enable_cookies_set, 1);
   rb_define_method(cCurlEasy, "enable_cookies?", ruby_curl_easy_enable_cookies_q, 0);
-
+  
   rb_define_method(cCurlEasy, "on_body", ruby_curl_easy_on_body_set, -1);
   rb_define_method(cCurlEasy, "on_header", ruby_curl_easy_on_header_set, -1);
   rb_define_method(cCurlEasy, "on_progress", ruby_curl_easy_on_progress_set, -1);
