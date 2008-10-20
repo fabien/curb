@@ -1413,9 +1413,6 @@ VALUE ruby_curl_easy_cleanup( VALUE self, ruby_curl_easy *rbce, VALUE bodybuf, V
     rbce->header_data = Qnil;
   }
 
-  // Clean up the options for subsequent calls
-  curl_easy_reset(rbce->curl);
-
   return Qnil;
 }
 
@@ -1583,7 +1580,14 @@ static VALUE ruby_curl_easy_perform_delete(VALUE self) {
   curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "DELETE");
   // curl_easy_setopt(curl, CURLOPT_NOBODY, 1);
 
-  return handle_perform(self,rbce);
+  VALUE retval = handle_perform(self,rbce);
+
+  /* If the CURLOPT_CUSTOMREQUEST value isn't cleared then the next
+   * request will fail in mysterious ways.
+   */
+  curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, NULL);
+
+  return retval;
 }
 
 /*
