@@ -1720,7 +1720,14 @@ static VALUE ruby_curl_easy_perform_put(VALUE self, VALUE data) {
   curl_easy_setopt(curl, CURLOPT_READDATA, &buffer);
   curl_easy_setopt(curl, CURLOPT_INFILESIZE, len);
 
-  return handle_perform(self, rbce);
+  VALUE retval = handle_perform(self, rbce);
+  
+  /* If the CURLOPT_UPLOAD value isn't cleared then the next PUT
+   * request will fail in mysterious ways. No, I have no idea why.
+   */
+  curl_easy_setopt(curl, CURLOPT_UPLOAD, 0);
+
+  return retval;
 }
 
 /* =================== DATA FUNCS =============== */
