@@ -22,7 +22,7 @@ static VALUE rbstrAmp;
 #endif
 
 VALUE cCurlEasy;
-
+size_t dataSize;
 
 /* ================== CURL HANDLER FUNCS ==============*/
 
@@ -35,20 +35,17 @@ static size_t default_data_handler(char *stream,
   return size * nmemb;
 }
 
-static size_t read_data_handler(char *stream,
-                                size_t size, 
-                                size_t nmemb, 
-                                char **buffer) {
-    size_t result = 0;
-
-    if (buffer != NULL && *buffer != NULL) {
-        int len = size * nmemb;
-        char *s1 = strncpy(stream, *buffer, len);
-        result = strlen(s1);
-        *buffer += result;
+static size_t read_data_handler(void* ptr, size_t size, size_t nmemb, void* stream) {
+    size_t total = size * nmemb;
+    if (total > dataSize) {
+        total = dataSize;
     }
-
-    return result;
+    if (total > 0) {
+        memcpy(ptr, stream, total);
+        memcpy(stream, ((char*)stream)+total, dataSize-total);
+        dataSize -= total;
+    }
+    return total;
 }
 
 static size_t proc_data_handler(char *stream, 
@@ -1578,8 +1575,7 @@ static VALUE ruby_curl_easy_perform_delete(VALUE self) {
   curl = rbce->curl;
   
   curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "DELETE");
-  // curl_easy_setopt(curl, CURLOPT_NOBODY, 1);
-
+  
   VALUE retval = handle_perform(self,rbce);
 
   /* If the CURLOPT_CUSTOMREQUEST value isn't cleared then the next
@@ -1692,7 +1688,22 @@ static VALUE ruby_curl_easy_perform_post(int argc, VALUE *argv, VALUE self) {
  * TODO Not yet implemented
  */
 static VALUE ruby_curl_easy_perform_head(VALUE self) {  
-  rb_raise(eCurlErrError, "Not yet implemented");
+  ruby_curl_easy *rbce;
+  CURL *curl;
+
+  Data_Get_Struct(self, ruby_curl_easy, rbce);
+  curl = rbce->curl;
+  
+  curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "HEAD");
+  
+  VALUE retval = handle_perform(self,rbce);
+
+  /* If the CURLOPT_CUSTOMREQUEST value isn't cleared then the next
+   * request will fail in mysterious ways.
+   */
+  curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, NULL);
+
+  return retval;
 }
 
 /*
@@ -1707,25 +1718,25 @@ static VALUE ruby_curl_easy_perform_put(VALUE self, VALUE data) {
   ruby_curl_easy *rbce;
   CURL *curl;
   char *buffer;
-  int len;
 
   Data_Get_Struct(self, ruby_curl_easy, rbce);
   curl = rbce->curl;
 
   buffer = StringValuePtr(data);
-  len = RSTRING_LEN(data);
-
+  dataSize = RSTRING_LEN(data);
+    
+  curl_easy_setopt(curl, CURLOPT_INFILESIZE, dataSize);
   curl_easy_setopt(curl, CURLOPT_UPLOAD, 1);
   curl_easy_setopt(curl, CURLOPT_READFUNCTION, read_data_handler);
-  curl_easy_setopt(curl, CURLOPT_READDATA, &buffer);
-  curl_easy_setopt(curl, CURLOPT_INFILESIZE, len);
-
+  curl_easy_setopt(curl, CURLOPT_READDATA, buffer);
+  
   VALUE retval = handle_perform(self, rbce);
   
   /* If the CURLOPT_UPLOAD value isn't cleared then the next PUT
    * request will fail in mysterious ways. No, I have no idea why.
    */
   curl_easy_setopt(curl, CURLOPT_UPLOAD, 0);
+  dataSize = 0;
 
   return retval;
 }
